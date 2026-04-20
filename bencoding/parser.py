@@ -25,7 +25,6 @@ class Decoder:
     def decode(self):
         """
         Decodes the bencode data and return the Matching python object.
-
         :return A python object representing the bencoded data
         """
 
@@ -84,8 +83,13 @@ class Decoder:
         return result
 
     def _decode_string(self):
-        bytes_to_read = int(self._read_until(TOKEN_STRING_SEPARATOR))
-        data = self._read(bytes_to_read)
+        # Parse length digits first (stop at colon, don't search for it)
+        start = self._index
+        while self._data[self._index : self._index + 1] != TOKEN_STRING_SEPARATOR:
+            self._index += 1
+        length = int(self._data[start : self._index])
+        self._index += 1  # skip the colon
+        data = self._read(length)
         return data
 
     def _decode_int(self):
@@ -96,7 +100,7 @@ class Decoder:
         # recursively decode the content of the file
         while self._data[self._index : self._index + 1] != TOKEN_END:
             res.append(self.decode())
-        self._consume  # The End Token
+        self._consume()  # The End Token
         return res
 
     def _decode_dict(self):
@@ -105,7 +109,7 @@ class Decoder:
             key = self.decode()
             obj = self.decode()
             res[key] = obj
-        self._consume()
+        self._consume()  # skip "e"
         return res
 
 
