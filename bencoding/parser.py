@@ -11,9 +11,9 @@ TOKEN_LIST = b"l"
 TOKEN_DICT = b"d"
 
 TOKEN_END = b"e"
-
+        
 TOKEN_STRING_SEPARATOR = b":"
-
+ 
 
 class Decoder:
     def __init__(self, data: bytes):
@@ -25,6 +25,7 @@ class Decoder:
     def decode(self):
         """
         Decodes the bencode data and return the Matching python object.
+
         :return A python object representing the bencoded data
         """
 
@@ -135,9 +136,9 @@ class Encoder:
         :returns the bencoded binary data
         """
 
-        return self.encode_next(self._data)
+        return self._encode_next(self._data)
 
-    def encode_next(self, data):
+    def _encode_next(self, data):
         if isinstance(data, str):
             return self._encode_string(data)
         elif isinstance(data, int):
@@ -167,15 +168,15 @@ class Encoder:
 
     def _encode_list(self, data):
         result = bytearray(b"l")
-        result += b"".join(self.encode_next(item) for item in data)
+        result += b"".join(self._encode_next(item) for item in data)
         result += b"e"
         return result
 
     def _encode_dict(self, data):
         result = bytearray("d", "utf-8")
         for k, v in data.items():
-            key = self.encode_next(k)
-            value = self.encode_next(v)
+            key = self._encode_next(k)
+            value = self._encode_next(v)
             if key and value:
                 result += key
                 result += value
