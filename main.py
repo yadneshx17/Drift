@@ -17,7 +17,12 @@ async def main():
 
     for ip, port in peers:
         conn = AsyncBitTorrentPeer(ip, port, info_hash, peer_id)
-        await conn.connect()
+        if not await conn.connect():
+            continue
+
+        if not await conn.handshake():
+            await conn.close()
+            continue
 
 
 try:

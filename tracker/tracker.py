@@ -8,9 +8,8 @@ from bencoding import Decoder, Encoder
 
 
 def get_peerId():
-    peer_id_prefix = b"-DRIFT0001-"
+    peer_id_prefix = b"-DRIFT0001-" 
     return peer_id_prefix + os.urandom(20 - len(peer_id_prefix))
-
 
 def get_peers(torrent_file, port=6881, numwant=50):
     with open(torrent_file, "rb") as f:
