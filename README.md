@@ -1,1 +1,1 @@
-# Drift - Bittorrent client in Python
+# Drift - Bittorrent client written in Python
