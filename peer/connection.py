@@ -1,4 +1,5 @@
 import asyncio
+import struct
 
 from .messages import ProtocolMessages
 
@@ -30,10 +31,10 @@ class AsyncBitTorrentPeer:
                 asyncio.open_connection(self.ip, self.port), timeout=self.timeout
             )
             self.connected = True
-            print(f"\nConnected to {self.ip}:{self.port}")
+            print(f"\n[+] Connected to {self.ip}:{self.port}")
             return True
         except Exception as e:
-            print(f"\n    Failed to connect to {self.ip}:{self.port} - {e}")
+            print(f"\n  [-] Failed to connect to {self.ip}:{self.port} - {e}")
             return False
 
     async def handshake(self):
@@ -53,14 +54,20 @@ class AsyncBitTorrentPeer:
             print(f"[*] Handshake successful with {self.ip}:{self.port}")
             return True
         except (asyncio.exceptions.IncompleteReadError, ConnectionError, OSError) as e:
-            print(f"Handshake failed with {self.ip}:{self.port} - {e}")
+            print(f"[-] Handshake failed with {self.ip}:{self.port} - {e}")
             return False
 
     async def send_interested(self):
         """Send interested message to peer."""
-        msg = ProtocolMessages.build_interested()
-        self.writer.write(msg)
-        await self.writer.drain()
+        if not self.connected or not self.writer:
+            return
+        try:
+            msg = ProtocolMessages.build_interested()
+            self.writer.write(msg)
+            await self.writer.drain()
+        except Exception:
+            self.connected = False
+            return
         self.interested = True
 
     async def send_not_interested(self):
@@ -72,15 +79,34 @@ class AsyncBitTorrentPeer:
 
     async def send_request(self, piece_index, begin, length):
         """Request a block from peer."""
-        msg = ProtocolMessages.build_request(piece_index, begin, length)
-        self.writer.write(msg)
-        await self.writer.drain()
+        if not self.connected or not self.writer:
+            return
+        try:
+            msg = ProtocolMessages.build_request(piece_index, begin, length)
+            self.writer.write(msg)
+            await self.writer.drain()
+        except Exception:
+            self.connected = False
 
     async def receive_message(self):
         """Receive and return (msg_id, payload) from peer."""
         try:
-            return await ProtocolMessages.read_message(self.reader)
+            length_data = await asyncio.wait_for(
+                self.reader.readexactly(4), timeout=self.timeout
+            )
+            length = struct.unpack(">I", length_data)[0]
+            if length == 0:
+                return None, None
+            msg_data = await asyncio.wait_for(
+                self.reader.readexactly(length), timeout=self.timeout
+            )
+            msg_id = msg_data[0]
+            payload = msg_data[1:] if length > 1 else b""
+            return msg_id, payload
         except asyncio.TimeoutError:
+            return None, None
+        except Exception:
+            self.connected = False
             return None, None
 
     def handle_message(self, msg_id, payload):
@@ -89,28 +115,38 @@ class AsyncBitTorrentPeer:
             return None
 
         name = ProtocolMessages.message_name(msg_id)
-        print(f"  -> {self.ip}:{self.port} sent: {name}")
+        if msg_id not in (4, 7):
+            print(f"  -> {self.ip}:{self.port} sent: {name}")
 
         if msg_id == 0:
             self.peer_choking = True
         elif msg_id == 1:
             self.peer_choking = False
-            print(f"  [unchoked]")
         elif msg_id == 2:
             self.peer_interested = True
         elif msg_id == 3:
             self.peer_interested = False
         elif msg_id == 4:
-            piece_index = ProtocolMessages.parse_have(payload)
-            return piece_index
+            ProtocolMessages.parse_have(payload)
+            return None
         elif msg_id == 5:
             self.bitfield = payload
         elif msg_id == 6:
-            return ProtocolMessages.parse_request(payload)
+            try:
+                return ProtocolMessages.parse_request(payload)
+            except struct.error:
+                return None
         elif msg_id == 7:
-            return ProtocolMessages.parse_piece(payload)
+            try:
+                index, begin, block = ProtocolMessages.parse_piece(payload)
+                return ("piece", index, begin, block)
+            except struct.error:
+                return None
         elif msg_id == 8:
-            return ProtocolMessages.parse_cancel(payload)
+            try:
+                return ProtocolMessages.parse_cancel(payload)
+            except struct.error:
+                return None
 
         return None
 
@@ -127,8 +163,11 @@ class AsyncBitTorrentPeer:
     async def close(self):
         """Close connection to peer."""
         if self.writer:
-            self.writer.close()
-            await self.writer.wait_closed()
+            try:
+                self.writer.close()
+                await asyncio.wait_for(self.writer.wait_closed(), timeout=2)
+            except Exception:
+                pass
         self.connected = False
         self.reader = None
         self.writer = None

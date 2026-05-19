@@ -8,8 +8,9 @@ from bencoding import Decoder, Encoder
 
 
 def get_peerId():
-    peer_id_prefix = b"-DRIFT0001-" 
+    peer_id_prefix = b"-DRIFT0001-"
     return peer_id_prefix + os.urandom(20 - len(peer_id_prefix))
+
 
 def get_peers(torrent_file, port=6881, numwant=50):
     with open(torrent_file, "rb") as f:
@@ -44,7 +45,7 @@ def get_peers(torrent_file, port=6881, numwant=50):
     elif b"files" in info:
         left = sum(f[b"length"] for f in info[b"files"])
     else:
-        raise ValueError("Invalid info directory: missing 'length" or "files")
+        raise ValueError("Invalid info directory: missing 'length' or 'files'")
 
     print(f"Total size: {left / (1024**3):.2f} GB")
     print("Info hash:", info_hash)
@@ -139,12 +140,12 @@ def get_peers(torrent_file, port=6881, numwant=50):
     else:
         raise ValueError("Unknown peers format")
 
-    return peers, info_hash, peer_id
+    return peers
 
 
 if __name__ == "__main__":
     try:
-        peers = get_peers("kali-linux-2026.1-installer-netinst-amd64.iso.torrent")
+        peers, info_hash, peer_id = get_peers("kali-linux-2026.1-installer-netinst-amd64.iso.torrent")
         print(f"\nFound {len(peers)} peers from tracker:")
         for ip, port in peers[:10]:
             print(f"  {ip}:{port}")
