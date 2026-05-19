@@ -11,9 +11,9 @@ TOKEN_LIST = b"l"
 TOKEN_DICT = b"d"
 
 TOKEN_END = b"e"
-        
+
 TOKEN_STRING_SEPARATOR = b":"
- 
+
 
 class Decoder:
     def __init__(self, data: bytes):
